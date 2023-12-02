@@ -10,18 +10,19 @@ class DbWork:
             password=db['password'],
             database='vkbot'
         )
+        self.column_names = ('warns', 'mute')
 
         self.cur = self.con.cursor()
 
     def add_user(self, vk_id: int) -> dict:
         self.cur.execute(f'insert into users (vk_id) values ({vk_id})')
         self.con.commit()
-        return {'warns': 0, 'mute': False}
+        return dict(zip(self.column_names, (0, False)))
 
     def get_user_data(self, vk_id: int) -> dict:
-        self.cur.execute(f'select warns, mute from users where vk_id={vk_id}')
+        self.cur.execute(f'select {', '.join(self.column_names)} from users where vk_id={vk_id}')
         if isinstance(data := self.cur.fetchone(), tuple):
-            return dict(zip(('warns', 'mute'), data))
+            return dict(zip(self.column_names, data))
         else:
             return self.add_user(vk_id)
 

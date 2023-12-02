@@ -10,7 +10,8 @@ class VkBot:
         self.longpoll = VkLongPoll(self.vk_session)
         self.vk = self.vk_session.get_api()
         self.db = DbWork()
-        self.commands = ('/kick', '/warn', '/unwarn', '/warnlist', '/mute', '/unmute')
+        self.commands_to_user = ('/kick', '/warn', '/unwarn', '/mute', '/unmute')
+        self.ind_commands = ('/warnlist',)
 
     def kick(self, member_id: int, chat_id: int) -> None:
         self.vk.messages.removeChatUser(
@@ -33,45 +34,26 @@ class VkBot:
 
     def run(self):
         for event in self.longpoll.listen():
-            if event.type == VkEventType.MESSAGE_NEW and event.to_me and event.text:
-                if event.from_chat:
-                    is_admin = False
-                    members = self.vk.messages.getConversationMembers(peer_id=2000000000 + event.chat_id)
-                    for member in members['items']:
-                        if member['member_id'] == event.user_id:
-                            is_admin = True
-
-                    if is_admin and (command := event.text.split()[0]) in self.commands:
+            if event.type == VkEventType.MESSAGE_NEW and event.from_chat and event.to_me and event.text:
+                members = self.vk.messages.getConversationMembers(peer_id=2000000000 + event.chat_id)
+                is_admin = sorted(members['items'],
+                                  key=lambda member: member['member_id'] == event.user_id,
+                                  reverse=True)[0].get('is_admin', False)
+                if is_admin:
+                    if (msg := event.text.split())[0] in self.commands_to_user:
+                        member_id = msg[1].split('|')[0][3:]
                         try:
-                            member_id = int(event.text.split()[1].split('|')[0][3:])
                             member_name = self.vk.users.get(user_ids=member_id)[0]['first_name']
-                            member_data = self.db.get_user_data(member_id)
-                        except Exception:
-                            match command:
-                                case '/warnlist':
-                                    warnlist = self.db.get_users_with_warns()
-
-                                    if warnlist:
-                                        message = ''
-
-                                        for member_id, warns in warnlist:
-                                            member_name = self.vk.users.get(user_ids=member_id)[0]['first_name']
-                                            message += f'{member_name}: {warns}\n'
-
-                                        self.vk.messages.send(
-                                            random_id=0,
-                                            chat_id=event.chat_id,
-                                            message=message
-                                        )
-                                    else:
-                                        self.vk.messages.send(
-                                            random_id=0,
-                                            chat_id=event.chat_id,
-                                            message='Нет пользователей с предупреждениями'
-                                        )
+                        except IndexError:
+                            self.vk.messages.send(
+                                random_id=0,
+                                chat_id=event.chat_id,
+                                message='Указан неверный пользователь'
+                            )
                             continue
+                        member_data = self.db.get_user_data(member_id)
 
-                        match command:
+                        match msg[0]:
                             case '/kick':
                                 self.kick(member_id, event.chat_id)
                             case '/warn':
@@ -100,12 +82,36 @@ class VkBot:
                                     chat_id=event.chat_id,
                                     message=f'{member_name} снова может отправлять сообщения'
                                 )
-                    elif not is_admin:
-                        member_name = self.vk.users.get(user_ids=event.user_id)[0]['first_name']
-                        member_data = self.db.get_user_data(event.user_id)
+                    elif event.text in self.ind_commands:
+                        match event.text:
+                            case '/warnlist':
+                                warnlist = self.db.get_users_with_warns()
 
-                        if member_data['mute']:
-                            self.warn(event.user_id, member_name, event.chat_id, member_data['warns'])
+                                if warnlist:
+                                    message = ''
+
+                                    for member_id, warns in warnlist:
+                                        member_name = self.vk.users.get(user_ids=member_id)[0]['first_name']
+                                        message += f'{member_name}: {warns}\n'
+
+                                    self.vk.messages.send(
+                                        random_id=0,
+                                        chat_id=event.chat_id,
+                                        message=message
+                                    )
+                                else:
+                                    self.vk.messages.send(
+                                        random_id=0,
+                                        chat_id=event.chat_id,
+                                        message='Нет пользователей с предупреждениями'
+                                    )
+            elif event.type == VkEventType.MESSAGE_NEW and event.from_chat and event.to_me:
+                member_id = event.user_id
+                member_name = self.vk.users.get(user_ids=member_id)[0]['first_name']
+                member_data = self.db.get_user_data(member_id)
+
+                if member_data['mute']:
+                    self.warn(member_id, member_name, event.chat_id, member_data['warns'])
 
 
 if __name__ == '__main__':
