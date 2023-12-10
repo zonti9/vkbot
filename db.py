@@ -22,7 +22,7 @@ class DbWork:
         self.con.commit()
 
     def get_user_data(self, vk_id: int) -> dict:
-        self.cur.execute(f'select {', '.join(self.column_names)} from users where vk_id={vk_id}')
+        self.cur.execute(f'select {", ".join(self.column_names)} from users where vk_id={vk_id}')
         if isinstance(data := self.cur.fetchone(), tuple):
             return dict(zip(self.column_names, data))
         else:
