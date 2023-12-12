@@ -31,3 +31,7 @@ class DbWork:
     def get_users_with_warns(self) -> list:
         self.cur.execute('select vk_id, warns from users where warns != 0')
         return self.cur.fetchall()
+
+    def get_users_with_role(self) -> list:
+        self.cur.execute('select vk_id from users where moderator = true')
+        return self.cur.fetchall()
