@@ -1,3 +1,4 @@
+from loguru import logger
 from typing import Any
 
 from mysql.connector import connect
@@ -35,6 +36,7 @@ class DbWork:
         self.con.commit()
 
     async def set_user_field(self, vk_id: int, field_name: str, value: Any):
+        logger.info(f'update users set {field_name} = {value} where vk_id={vk_id}')
         self.cur.execute(f'update users set {field_name} = {value} where vk_id={vk_id}')
         self.con.commit()
 
