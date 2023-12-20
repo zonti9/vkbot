@@ -5,12 +5,13 @@ from vkbottle.dispatch.handlers import FromFuncHandler
 
 from config import db_con, command_temp
 
+
 class AdminView(BotMessageView):
     pass
 
 
 class CheckAdminMessage(BaseMiddleware[Message]):
-    admin_coms = ('/addmoder', '/removerole')
+    admin_coms = ("/addmoder", "/removerole")
 
     async def pre(self):
         if self.event.text.split()[0] not in self.admin_coms:
@@ -24,18 +25,18 @@ class CheckAdminMessage(BaseMiddleware[Message]):
 
 
 async def add_moder_handler(message: Message, member_id: int, member_name: str):
-    await db_con.set_user_field(member_id, 'moderator', True)
-    await message.answer(f'{member_name} теперь модератор чата')
+    await db_con.set_user_field(member_id, "moderator", True)
+    await message.answer(f"{member_name} теперь модератор чата")
 
 
 async def remove_role_handler(message: Message, member_id: int, member_name: str):
-    await db_con.set_user_field(member_id, 'moderator', False)
-    await message.answer(f'{member_name} больше не является модератором чата')
+    await db_con.set_user_field(member_id, "moderator", False)
+    await message.answer(f"{member_name} больше не является модератором чата")
 
 
 admin_view = AdminView()
 admin_view.register_middleware(CheckAdminMessage)
 admin_view.handlers = [
-    FromFuncHandler(add_moder_handler, rules.VBMLRule('/addmoder' + command_temp)),
-    FromFuncHandler(remove_role_handler, rules.VBMLRule('/removerole' + command_temp))
+    FromFuncHandler(add_moder_handler, rules.VBMLRule("/addmoder" + command_temp)),
+    FromFuncHandler(remove_role_handler, rules.VBMLRule("/removerole" + command_temp))
 ]

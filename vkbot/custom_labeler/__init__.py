@@ -8,11 +8,11 @@ from .member_view import member_view
 
 
 class CustomLabeler(BotLabeler):
-    def views(self) -> Dict[str, 'BotMessageView']:
+    def views(self) -> Dict[str, "BotMessageView"]:
         # Из views должны быть возвращены все view которые
         # будут позже обрабатываться роутером
         return {
-            'admin_view': admin_view,
-            'moder_view': moder_view,
-            'member_view': member_view
+            "admin_view": admin_view,
+            "moder_view": moder_view,
+            "member_view": member_view
         }

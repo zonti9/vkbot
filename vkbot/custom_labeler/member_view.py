@@ -5,16 +5,17 @@ from vkbottle.dispatch.handlers import FromFuncHandler
 
 from config import db_con
 
+
 class MemberView(BotMessageView):
     pass
 
 
 class MemberMute(ABCRule[Message]):
     async def check(self, message: Message) -> bool:
-        return bool(await db_con.get_user_field(message.from_id, 'mute'))
+        return bool(await db_con.get_user_field(message.from_id, "mute"))
 
 
-async def message(message: Message):
+async def check_mute(message: Message):
     message_id = (await message.ctx_api.messages.get_by_conversation_message_id(
         peer_id=2000000000 + message.chat_id,
         conversation_message_ids=message.conversation_message_id
@@ -24,5 +25,5 @@ async def message(message: Message):
 
 member_view = MemberView()
 member_view.handlers = [
-    FromFuncHandler(message, MemberMute())
+    FromFuncHandler(check_mute, MemberMute())
 ]
