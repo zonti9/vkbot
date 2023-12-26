@@ -11,7 +11,7 @@ class ModerView(BotMessageView):
 
 
 class CheckModerMessage(BaseMiddleware[Message]):
-    moder_coms = ("/kick", "/warn", "/unwarn", "/mute", "/unmute", "/warnlist", "/muted", "/staff")
+    moder_coms = ("/kick", "/warn", "/unwarn", "/mute", "/unmute", "/warnlist", "/muted", "/staff", "/zov")
 
     async def pre(self):
         if self.event.text.split()[0] not in self.moder_coms:
@@ -33,11 +33,11 @@ class CheckModerMessage(BaseMiddleware[Message]):
             self.stop()
 
 
-async def kick(message: Message, member_id: int):
+async def kick_handler(message: Message, member_id: int):
     await message.ctx_api.messages.remove_chat_user(message.chat_id, member_id)
 
 
-async def warn(message: Message, member_id: int, member_name: str):
+async def warn_handler(message: Message, member_id: int, member_name: str):
     warns = await db_con.get_user_field(member_id, "warns")
     warns += 1
     await db_con.set_user_field(member_id, "warns", warns)
@@ -48,22 +48,22 @@ async def warn(message: Message, member_id: int, member_name: str):
         await message.ctx_api.messages.remove_chat_user(message.chat_id, member_id)
 
 
-async def unwarn(message: Message, member_id: int, member_name: str):
+async def unwarn_handler(message: Message, member_id: int, member_name: str):
     await db_con.set_user_field(member_id, "warns", 0)
     await message.answer(f"{member_name} избавлен от предупреждений")
 
 
-async def mute(message: Message, member_id: int, member_name: str):
+async def mute_handler(message: Message, member_id: int, member_name: str):
     await db_con.set_user_field(member_id, "mute", True)
     await message.answer(f"{member_name} больше не может отправлять сообщения")
 
 
-async def unmute(message: Message, member_id: int, member_name: str):
+async def unmute_handler(message: Message, member_id: int, member_name: str):
     await db_con.set_user_field(member_id, "mute", False)
     await message.answer(f"{member_name} снова может отправлять сообщения")
 
 
-async def get_warnlist(message: Message):
+async def warnlist_handler(message: Message):
     warnlist = await db_con.get_users_with_warns()
 
     if warnlist:
@@ -78,7 +78,7 @@ async def get_warnlist(message: Message):
         await message.answer("Нет пользователей с предупреждениями")
 
 
-async def get_muted_users(message: Message):
+async def muted_handler(message: Message):
     muted = await db_con.get_users_with_mute()
 
     if muted:
@@ -93,7 +93,7 @@ async def get_muted_users(message: Message):
         await message.answer("В этом чате нет пользователей в муте")
 
 
-async def get_staff(message: Message):
+async def staff_handler(message: Message):
     staff = await db_con.get_users_with_role()
 
     if staff:
@@ -108,15 +108,29 @@ async def get_staff(message: Message):
         await message.answer("В этом чате нет модераторов")
 
 
+async def zov_handler(message: Message):
+    members = await message.ctx_api.messages.get_conversation_members(peer_id=2000000000 + message.chat_id)
+    text = ""
+
+    for member in members.items:
+        member_id = member.member_id
+
+        if member_id > 0 and member_id != message.from_id:
+            text += f"[id{member_id}|&]"
+
+    await message.answer(text)
+
+
 moder_view = ModerView()
 moder_view.register_middleware(CheckModerMessage)
 moder_view.handlers = [
-    FromFuncHandler(kick, rules.VBMLRule("/kick" + command_temp)),
-    FromFuncHandler(warn, rules.VBMLRule("/warn" + command_temp)),
-    FromFuncHandler(unwarn, rules.VBMLRule("/unwarn" + command_temp)),
-    FromFuncHandler(mute, rules.VBMLRule("/mute" + command_temp)),
-    FromFuncHandler(unmute, rules.VBMLRule("/unmute" + command_temp)),
-    FromFuncHandler(get_warnlist, rules.VBMLRule("/warnlist")),
-    FromFuncHandler(get_muted_users, rules.VBMLRule("/muted")),
-    FromFuncHandler(get_staff, rules.VBMLRule("/staff"))
+    FromFuncHandler(kick_handler, rules.VBMLRule("/kick" + command_temp)),
+    FromFuncHandler(warn_handler, rules.VBMLRule("/warn" + command_temp)),
+    FromFuncHandler(unwarn_handler, rules.VBMLRule("/unwarn" + command_temp)),
+    FromFuncHandler(mute_handler, rules.VBMLRule("/mute" + command_temp)),
+    FromFuncHandler(unmute_handler, rules.VBMLRule("/unmute" + command_temp)),
+    FromFuncHandler(warnlist_handler, rules.VBMLRule("/warnlist")),
+    FromFuncHandler(muted_handler, rules.VBMLRule("/muted")),
+    FromFuncHandler(staff_handler, rules.VBMLRule("/staff")),
+    FromFuncHandler(zov_handler, rules.VBMLRule("/zov"))
 ]
