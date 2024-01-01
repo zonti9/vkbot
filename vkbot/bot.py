@@ -9,4 +9,6 @@ bot = Bot(
     labeler=labeler,
     state_dispenser=state_dispenser
 )
-bot.run_forever()
+
+if __name__ == "__main__":
+    bot.run_forever()

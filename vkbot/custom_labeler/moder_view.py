@@ -11,7 +11,8 @@ class ModerView(BotMessageView):
 
 
 class CheckModerMessage(BaseMiddleware[Message]):
-    moder_coms = ("/kick", "/warn", "/unwarn", "/mute", "/unmute", "/warnlist", "/muted", "/staff", "/zov")
+    moder_coms = ("/kick", "/warn", "/unwarn", "/getwarn", "/mute", "/unmute",
+                  "/warnlist", "/muted", "/staff", "/onlinelist", "/zov", "/online")
 
     async def pre(self):
         if self.event.text.split()[0] not in self.moder_coms:
@@ -51,6 +52,15 @@ async def warn_handler(message: Message, member_id: int, member_name: str):
 async def unwarn_handler(message: Message, member_id: int, member_name: str):
     await db_con.set_user_field(member_id, "warns", 0)
     await message.answer(f"{member_name} избавлен от предупреждений")
+
+
+async def getwarn_handler(message: Message, member_id: int, member_name: str):
+    warns = await db_con.get_user_field(member_id, "warns")
+
+    if warns:
+        await message.answer(f"У {member_name} {warns} предупреждений")
+    else:
+        await message.answer(f"У {member_name} нет предупреждений")
 
 
 async def mute_handler(message: Message, member_id: int, member_name: str):
@@ -108,17 +118,44 @@ async def staff_handler(message: Message):
         await message.answer("В этом чате нет модераторов")
 
 
+async def onlinelist_hadler(message: Message):
+    members = await message.ctx_api.messages.get_conversation_members(peer_id=2000000000 + message.chat_id)
+    member_ids = [member.member_id for member in members.items]
+    users = await message.ctx_api.users.get(user_ids=member_ids, fields=["online"])
+    online_users = [user.first_name for user in users if user.online and user.id != message.from_id]
+
+    if online_users:
+        await message.answer("\n".join(online_users))
+    else:
+        await message.answer("Нет пользователей в сети")
+
+
 async def zov_handler(message: Message):
     members = await message.ctx_api.messages.get_conversation_members(peer_id=2000000000 + message.chat_id)
+    member_ids = [member.member_id for member in members.items]
+    users = await message.ctx_api.users.get(user_ids=member_ids)
+
     text = ""
+    for user in users:
+        if user.id != message.from_id:
+            text += f"[id{user.id}|{user.first_name}], "
 
-    for member in members.items:
-        member_id = member.member_id
+    if text:
+        await message.answer(text[:-2])
+    else:
+        await message.answer("В этом чате нет пользователей")
 
-        if member_id > 0 and member_id != message.from_id:
-            text += f"[id{member_id}|&]"
 
-    await message.answer(text)
+async def online_handler(message: Message):
+    members = await message.ctx_api.messages.get_conversation_members(peer_id=2000000000 + message.chat_id)
+    member_ids = [member.member_id for member in members.items]
+    users = await message.ctx_api.users.get(user_ids=member_ids, fields=["online"])
+    online_users = [f"[id{user.id}|{user.first_name}]" for user in users if user.online and user.id != message.from_id]
+
+    if online_users:
+        await message.answer(", ".join(online_users))
+    else:
+        await message.answer("Нет пользователей в сети")
 
 
 moder_view = ModerView()
@@ -127,10 +164,13 @@ moder_view.handlers = [
     FromFuncHandler(kick_handler, rules.VBMLRule("/kick" + command_temp)),
     FromFuncHandler(warn_handler, rules.VBMLRule("/warn" + command_temp)),
     FromFuncHandler(unwarn_handler, rules.VBMLRule("/unwarn" + command_temp)),
+    FromFuncHandler(getwarn_handler, rules.VBMLRule("/getwarn" + command_temp)),
     FromFuncHandler(mute_handler, rules.VBMLRule("/mute" + command_temp)),
     FromFuncHandler(unmute_handler, rules.VBMLRule("/unmute" + command_temp)),
     FromFuncHandler(warnlist_handler, rules.VBMLRule("/warnlist")),
     FromFuncHandler(muted_handler, rules.VBMLRule("/muted")),
     FromFuncHandler(staff_handler, rules.VBMLRule("/staff")),
-    FromFuncHandler(zov_handler, rules.VBMLRule("/zov"))
+    FromFuncHandler(onlinelist_hadler, rules.VBMLRule("/onlinelist")),
+    FromFuncHandler(zov_handler, rules.VBMLRule("/zov")),
+    FromFuncHandler(online_handler, rules.VBMLRule("/online"))
 ]
