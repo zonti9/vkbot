@@ -28,5 +28,10 @@ async def delete_message(message: Message):
     "chat_invite_user_by_message_request"
 ]))
 async def create_member(message: Message):
-    user = (await message.ctx_api.users.get(user_ids=[message.action.member_id]))[0]
-    await Member.create(vk_id=user.id, nick=user.screen_name or user.first_name)
+    member = await Member.get_or_none(vk_id=message.action.member_id)
+    if member:
+        if member.ban:
+            await message.ctx_api.messages.remove_chat_user(chat_id=message.chat_id, member_id=member.vk_id)
+    else:
+        user = (await message.ctx_api.users.get(user_ids=[message.action.member_id]))[0]
+        await Member.create(vk_id=user.id, nick=user.screen_name or user.first_name)
