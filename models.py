@@ -5,6 +5,7 @@ from tortoise import fields
 class Member(Model):
     vk_id = fields.IntField(pk=True)
     nick = fields.CharField(max_length=255, default=None)
+    name = fields.CharField(max_length=255, default="")
     role = fields.CharField(max_length=255, default="member")
     warns = fields.IntField(default=0)
     mute = fields.BooleanField(default=False)
