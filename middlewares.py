@@ -6,17 +6,18 @@ from loguru import logger
 
 
 class BaseCheckCommand(BaseMiddleware[Message]):
-    COMMANDS: tuple
-    COMMANDS_ARGUMENT: tuple
-    COMMANDS_MENTION_FOR_ALL: tuple
-    COMMANDS_MENTION_WITHOUT_MODER: tuple
+    COMMANDS = ()
+    COMMANDS_ARGUMENT = ()
+    COMMANDS_MENTION_FOR_ALL = ()
+    COMMANDS_MENTION_WITHOUT_MODER = ()
+    COMMANDS_REPLY_WITHOUT_MODER = ()
 
     @staticmethod
     async def get_member_from_mention(mention: str) -> Member | None:
-        if all(char in mention for char in "[|]") and ("id" in mention):
-            mention = mention.split("|")
         try:
+            mention = mention.split("|")
             member_id = int(mention[0][3:])
+            logger.info(member_id)
             member = await Member.get_or_none(vk_id=member_id)
         except Exception:
             member = None
@@ -35,7 +36,6 @@ class BaseCheckCommand(BaseMiddleware[Message]):
                     return
                 elif command in self.COMMANDS_MENTION_WITHOUT_MODER:
                     logger.info("except moder")
-                    member = await self.get_member_from_mention(command[1])
                     if member and member.role == "member":
                         logger.info("he isn't moder")
                         if not member.nick:
@@ -48,10 +48,15 @@ class BaseCheckCommand(BaseMiddleware[Message]):
             elif command in self.COMMANDS_ARGUMENT:
                 logger.info("command with argument")
                 return
+        elif command in self.COMMANDS_REPLY_WITHOUT_MODER:
+            reply = self.event.reply_message
+            member = await Member.get(vk_id=reply.from_id)
+            if member.role == "member":
+                self.send({"member": member})
+                return
         elif command in self.COMMANDS:
             logger.info("standart command")
             return
-        await self.event.answer("Ошибка синтаксиса в команде")
         self.stop()
 
 
@@ -67,10 +72,11 @@ class AdminCommandMiddleware(BaseCheckCommand):
 
 
 class ModerCommandMiddleware(BaseCheckCommand):
-    COMMANDS = ("help", "removenick", "warnlist", "muted", "banlist", "staff", "onlinelist", "zov", "online")
+    COMMANDS = ("help", "removenick", "nlist", "nonick", "warnlist", "muted", "banlist", "staff", "onlinelist", "zov", "online")
     COMMANDS_ARGUMENT = ("setnick", "getacc")
-    COMMANDS_MENTION_FOR_ALL = ("getnick",)
-    COMMANDS_MENTION_WITHOUT_MODER = ("kick", "warn", "unwarn", "getwarn", "mute", "unmute", "ban", "unban")
+    COMMANDS_MENTION_FOR_ALL = ("getnick", "warnhistory")
+    COMMANDS_MENTION_WITHOUT_MODER = ("kick", "unwarn", "getwarn", "mute", "unmute", "ban", "unban")
+    COMMANDS_REPLY_WITHOUT_MODER = ("warn",)
 
     async def pre(self):
         if (await Member.get(vk_id=self.event.from_id)).role == "moder":

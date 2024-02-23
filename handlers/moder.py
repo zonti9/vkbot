@@ -1,5 +1,6 @@
 from vkbottle.bot import BotLabeler, Message, rules
-from models import Member
+from models import Member, Warn
+from loguru import logger
 
 moder_labeler = BotLabeler()
 moder_labeler.auto_rules = [rules.PeerRule(from_chat=True)]
@@ -10,20 +11,22 @@ async def help_handler(message: Message):
     await message.answer(
         """
         Команды модераторов:
-        /kick — исключить пользователя из беседы
-        /mute — замутить пользователя
-        /unmute — размутить пользователя
-        /warn — выдать предупреждение пользователю
-        /unwarn — снять предупреждение пользователю
-        /getwarn — информация о активных предупреждениях пользователя
+        /kick <упоминание пользователя> — исключить пользователя из беседы
+        /mute <упоминание пользователя> — замутить пользователя
+        /unmute <упоминание пользователя> — размутить пользователя
+        /warn <упоминание пользователя> — выдать предупреждение пользователю
+        /unwarn <упоминание пользователя> — снять предупреждение пользователю
+        /getwarn <упоминание пользователя> — информация о активных предупреждениях пользователя
         /staff — пользователи с ролями
-        /setnick — сменить ник у пользователя
+        /setnick <ник> — сменить ник у пользователя
         /removenick — очистить ник у пользователя
-        /getnick — проверить ник пользователя
-        /getacc — узнать пользователя по нику
+        /nlist — посмотреть ники пользователей
+        /nonick — пользователи без ников
+        /getnick <упоминание пользователя> — проверить ник пользователя
+        /getacc <ник> — узнать пользователя по нику
         /warnlist — список пользователей с варном
-        /ban — заблокировать пользователя в беседе
-        /unban — разблокировать пользователя в беседе
+        /ban <упоминание пользователя> — заблокировать пользователя в беседе
+        /unban <упоминание пользователя> — разблокировать пользователя в беседе
         /zov — упомянуть всех пользователей
         /online — упомянуть пользователей онлайн
         /banlist — посмотреть заблокированных
@@ -44,7 +47,7 @@ async def setnick_handler(message: Message, nick: str):
 
 
 @moder_labeler.message(text="/getacc <nick>")
-async def setnick_handler(message: Message, nick: str):
+async def getacc_handler(message: Message, nick: str):
     member = await Member.get_or_none(nick=nick)
     if member:
         await message.answer(f"Пользователь с ником {member.nick} - это [id{member.vk_id}|{member.name}]")
@@ -53,7 +56,7 @@ async def setnick_handler(message: Message, nick: str):
 
 
 @moder_labeler.message(command="removenick")
-async def setnick_handler(message: Message):
+async def removenick_handler(message: Message):
     member = await Member.get(vk_id=message.from_id)
     member.nick = ""
     await member.save()
@@ -61,8 +64,32 @@ async def setnick_handler(message: Message):
 
 
 @moder_labeler.message(command=("getnick", 1))
-async def get_nick(message: Message, member: Member):
+async def getnick_handler(message: Message, member: Member):
     await message.answer(f"Ник пользователя {member.name}: {member.nick}")
+
+
+@moder_labeler.message(command="nlist")
+async def nlist_handler(message: Message):
+    moders_with_nick = await Member.filter(nick__not="", role="moder")
+    if moders_with_nick:
+        text = "Модератор - ник:\n"
+        for moder in moders_with_nick:
+            text += f"[id{moder.vk_id}|{moder.name}] - {moder.nick}\n"
+        await message.answer(text)
+    else:
+        await message.answer("В этом чате нет модераторов с ником")
+
+
+@moder_labeler.message(command="nonick")
+async def nonick_handler(message: Message):
+    moders_without_nick = await Member.filter(nick="", role="moder")
+    if moders_without_nick:
+        text = "Модераторы без ника:\n"
+        for moder in moders_without_nick:
+            text += f"[id{moder.vk_id}|{moder.name}]"
+        await message.answer(text)
+    else:
+        await message.answer("В этом чате все модераторы с ником")
 
 
 @moder_labeler.message(command=("kick", 1))
@@ -71,32 +98,55 @@ async def kick_handler(message: Message, member: Member):
     await message.answer(f"Пользователь {member.nick or member.name} был исключен из чата")
 
 
-@moder_labeler.message(command=("warn", 1))
+@moder_labeler.message(command="warn")
 async def warn_handler(message: Message, member: Member):
-    member.warns += 1
-    await member.save()
+    reply = message.reply_message
+    await Warn.create(member_id=reply.from_id, message=reply.text)
+    active = len(await member.warns.filter(active=True))
     name = member.nick or member.name
-    await message.answer(f"Пользователь {name} получил {member.warns} предупреждение")
+    await message.answer(f"Пользователь {name} получил {active} предупреждение")
 
-    if member.warns >= 3:
+    if active >= 3:
         await message.ctx_api.messages.remove_chat_user(message.chat_id, member.vk_id)
         await message.answer(f"{name} превысел лимит предупреждений и был исключен из чата")
 
 
 @moder_labeler.message(command=("unwarn", 1))
 async def unwarn_handler(message: Message, member: Member):
-    member.warns = 0
-    await member.save()
+    active_warns = await member.warns.filter(active=True)
+    for warn in active_warns:
+        warn.active = False
+        await warn.save()
     await message.answer(f"Пользователь {member.nick or member.name} избавлен от предупреждений")
 
 
 @moder_labeler.message(command=("getwarn", 1))
 async def getwarn_handler(message: Message, member: Member):
     name = member.nick or member.name
-    if member.warns:
-        await message.answer(f"У пользователя {name} {member.warns} предупреждений")
+    active = ""
+    for i, warn in enumerate(await member.warns.filter(active=True), start=1):
+        active += f"{i}) сообщение: {warn.message}\n"
+    if active:
+        await message.answer(f"Активные предупреждения пользователя {name}:\n{active}")
     else:
-        await message.answer(f"У пользователя {name} нет предупреждений")
+        await message.answer(f"У пользователя {name} нет активных предупреждений")
+
+
+@moder_labeler.message(command=("warnhistory", 1))
+async def warnhistory_handler(message: Message, member: Member):
+    total_count = len(await member.warns)
+    if total_count:
+        inactive = ""
+        for i, warn in enumerate(await member.warns.filter(active=False), start=1):
+            inactive += f"{i}) сообщение: {warn.message}\n"
+        active = ""
+        for i, warn in enumerate(await member.warns.filter(active=True), start=1):
+            active += f"{i}) сообщение: {warn.message}\n"
+        await message.answer(f"История предупреждений пользователя {member.nick or member.name}:\n"
+                             f"Неактивных предупреждений:\n{inactive}"
+                             f"Активные предупреждения:\n{active}")
+    else:
+        await message.answer(f"У пользователя {member.nick or member.name} нет и не было предупреждений")
 
 
 @moder_labeler.message(command=("mute", 1))
@@ -179,6 +229,7 @@ async def zov_handler(message: Message):
     members = await Member.filter(vk_id__not=message.from_id)
     if members:
         text = ", ".join([f"[id{member.vk_id}|{member.nick or member.name}]" for member in members])
+        logger.info(text)
         await message.answer(text)
     else:
         await message.answer("В этом чате нет пользователей")

@@ -34,4 +34,4 @@ async def create_member(message: Message):
             await message.ctx_api.messages.remove_chat_user(chat_id=message.chat_id, member_id=member.vk_id)
     else:
         user = (await message.ctx_api.users.get(user_ids=[message.action.member_id]))[0]
-        await Member.create(vk_id=user.id, nick=user.screen_name or user.first_name)
+        await Member.create(vk_id=user.id, name=user.screen_name or user.first_name)

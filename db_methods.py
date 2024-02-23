@@ -15,4 +15,4 @@ async def init_database(bot: Bot):
     users = await bot.api.users.get(user_ids=difference)
 
     for user in users:
-        await Member.create(vk_id=user.id, nick=user.screen_name or user.first_name)
+        await Member.create(vk_id=user.id, name=user.first_name)
