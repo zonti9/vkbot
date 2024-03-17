@@ -14,7 +14,13 @@ class Member(Model):
         table = "members"
 
     def __str__(self):
-        return self.nick
+        return self.nick or self.name
+
+    def mention(self, use_nick_if_exists: bool):
+        if use_nick_if_exists:
+            return f"[id{self.vk_id}|{self.nick or self.name}]"
+        else:
+            return f"[id{self.vk_id}|{self.name}]"
 
 
 class Warn(Model):

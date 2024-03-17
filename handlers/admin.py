@@ -10,11 +10,12 @@ admin_labeler.auto_rules = [rules.PeerRule(from_chat=True)]
 async def add_moder_handler(message: Message, member: Member):
     member.role = "moder"
     await member.save()
-    await message.answer(f"{member.nick or member.name} теперь модератор чата")
+    await message.answer(f"{member.mention(True)} теперь модератор чата")
 
 
 @admin_labeler.message(command=("removerole", 1))
 async def remove_role_handler(message: Message, member: Member):
     member.role = "member"
+    member.nick = ""
     await member.save()
-    await message.answer(f"{member.nick or member.name} больше не является модератором чата")
+    await message.answer(f"{member.mention(True)} больше не является модератором чата")
